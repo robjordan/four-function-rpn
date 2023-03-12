@@ -5,6 +5,9 @@
 #ifndef min
     #define min(a,b) ((a) > (b) ? (b) : (a))
 #endif
+#ifndef max
+    #define max(a,b) ((a) > (b) ? (a) : (b))
+#endif
 
 
 typedef struct {
@@ -62,7 +65,11 @@ int num_bin_digits(int x) {
 }
 
 int multiply_overflow(int x, int y) {
-	return (((num_bin_digits(x)+num_bin_digits(y))>23) ? 1 : 0);
+	return (((num_bin_digits(x)+num_bin_digits(y))>31) ? 1 : 0);
+}
+
+int addition_overflow(int x, int y) {
+	return (((num_bin_digits(max(x, y)))>30) ? 1 : 0);
 }
  
 void process_symbol(int ch) {
@@ -129,16 +136,19 @@ void process_symbol(int ch) {
 			break;
 
 		case (int)'/':
-			/* for now assume / always gives a float */
-			x.value.fl = to_float(y) / to_float(x);
-			x.value_type = FLOATING;
+			if (x.value_type == FIXED && y.value_type == FIXED 
+				&& y.value.nt % x.value.nt == 0) {
+				x.value.nt = y.value.nt / x.value.nt;	
+			} else {
+				x.value.fl = to_float(y) / to_float(x);
+				x.value_type = FLOATING;
+			}
 			y = z;
 			z = t;
 			state = POSTOP;
 			break;
 
 		case (int)'*':
-
 			if (x.value_type == FIXED && y.value_type == FIXED
 				&& !multiply_overflow(x.value.nt, y.value.nt)) {
 				x.value.nt = x.value.nt * y.value.nt;
@@ -164,7 +174,8 @@ void process_symbol(int ch) {
 			break;
 
 		case (int)'+':
-			if (x.value_type == FIXED && y.value_type == FIXED) {
+			if (x.value_type == FIXED && y.value_type == FIXED
+				&& !addition_overflow(x.value.nt, y.value.nt)) {
 				x.value.nt = y.value.nt + x.value.nt;
 			} else {
 				x.value.fl = to_float(y) + to_float(x);
@@ -192,9 +203,9 @@ void refresh_screen() {
 	// sleep(1);
 	clear();
 	if (x.value_type == FIXED)
-		(void)sprintf(xstr, "x: %d", x.value.nt);
+		(void)sprintf(xstr, "x(i): %d", x.value.nt);
 	else
-		(void)sprintf(xstr, "x: %g", x.value.fl);
+		(void)sprintf(xstr, "x(f): %g", x.value.fl);
 	
 	if (y.value_type == FIXED)
 		(void)sprintf(ystr, "y: %d", y.value.nt);
