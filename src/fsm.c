@@ -9,6 +9,8 @@
     #define max(a,b) ((a) > (b) ? (a) : (b))
 #endif
 
+#define STACKDEPTH 4
+#define DISPDIGITS 8
 
 typedef struct {
 	enum {
@@ -21,30 +23,22 @@ typedef struct {
 	} value;
 } value;
 
-char xstr[32], ystr[32], zstr[32], tstr[32];
-value x, y, z, t;
+char str[32];
+value s[STACKDEPTH];	/* the stack */
 
-// void format_float(char *dst, int n, char *prefix, float f) {
-// 	int prefix_len = min(strlen(prefix), n);
-// 	strncpy(dst, prefix, prefix_len, n));
-// 	n -= prefix_len;
-// 	dst += prefix_len
-// 	if (f < 0.0) {
-// 		strncpy(dst, "-", n);
-// 		n - 1;
-// 		dst++;
-// 		f *= (-1);
-// 	}
+// push each stack element up one step, to make space for a new top item
+void stack_up() {
+	for (int i=STACKDEPTH-1; i>0; i--) {
+		s[i] = s[i-1];
+	}
+}
 
-// 	if (f >= 0) {
-// 		/* is scientific notation needed? */
-
-
-// 	} else /* f < 0*/ {
-
-// 	}
-
-// }
+// pull each stack element, except the highest 2, down one step
+void stack_down() {
+	for (int i=2; i<STACKDEPTH; i++) {
+		s[i-1] = s[i];
+	}
+}
 
 float to_float(value x) {
 	return ((x.value_type == FIXED) ? (float)x.value.nt : x.value.fl);
@@ -93,42 +87,38 @@ void process_symbol(int ch) {
 		case (int)'8':
 		case (int)'9':
 			if (state == POSTOP) {
-				t = z;
-				z = y;
-				y = x;
-				x.value_type = FIXED;
-				x.value.nt = (ch-(int)'0');
+				stack_up();
+				s[0].value_type = FIXED;
+				s[0].value.nt = (ch-(int)'0');
 				state = FILLING_INT;
 			} else if (state == POSTENTER) {
-				x.value_type = FIXED;
-				x.value.nt = (ch-(int)'0');
+				s[0].value_type = FIXED;
+				s[0].value.nt = (ch-(int)'0');
 				state = FILLING_INT;
 			} else if (state == FILLING_INT) {
-				x.value.nt = x.value.nt * 10 + (ch-(int)'0');
+				s[0].value.nt = s[0].value.nt * 10 + (ch-(int)'0');
 			} else if (state == FILLING_DEC) {
-				x.value.fl = x.value.fl + dp * (float)(ch-(int)'0');
+				s[0].value.fl = s[0].value.fl + dp * (float)(ch-(int)'0');
 				dp /= 10.0;
 			}
 			break;
 
 		case (int)'.':
 			if (state == POSTOP) {
-				t = z;
-				z = y;
-				y = x;				
-				x.value_type = FLOATING;
-				x.value.fl = 0.0;
+				stack_up();	
+				s[0].value_type = FLOATING;
+				s[0].value.fl = 0.0;
 				state = FILLING_DEC;
 				dp = 0.1;
 			} else if (state == POSTENTER) {
-				x.value_type = FLOATING;
-				x.value.fl = 0.0;
+				s[0].value_type = FLOATING;
+				s[0].value.fl = 0.0;
 				state = FILLING_DEC;
 				dp = 0.1;
 			} else if (state == FILLING_INT) {
 				state = FILLING_DEC;
-				x.value_type = FLOATING;
-				x.value.fl = (float)x.value.nt;
+				s[0].value_type = FLOATING;
+				s[0].value.fl = (float)s[0].value.nt;
 				dp = 0.1;
 			} else if (state == FILLING_DEC) {
 				/* dp when already in decimal is ignored */
@@ -136,60 +126,54 @@ void process_symbol(int ch) {
 			break;
 
 		case (int)'/':
-			if (x.value_type == FIXED && y.value_type == FIXED 
-				&& y.value.nt % x.value.nt == 0) {
-				x.value.nt = y.value.nt / x.value.nt;	
+			if (s[0].value_type == FIXED && s[1].value_type == FIXED 
+				&& s[1].value.nt % s[0].value.nt == 0) {
+				s[0].value.nt = s[1].value.nt / s[0].value.nt;	
 			} else {
-				x.value.fl = to_float(y) / to_float(x);
-				x.value_type = FLOATING;
+				s[0].value.fl = to_float(s[1]) / to_float(s[0]);
+				s[0].value_type = FLOATING;
 			}
-			y = z;
-			z = t;
+			stack_down();
 			state = POSTOP;
 			break;
 
 		case (int)'*':
-			if (x.value_type == FIXED && y.value_type == FIXED
-				&& !multiply_overflow(x.value.nt, y.value.nt)) {
-				x.value.nt = x.value.nt * y.value.nt;
+			if (s[0].value_type == FIXED && s[1].value_type == FIXED
+				&& !multiply_overflow(s[0].value.nt, s[1].value.nt)) {
+				s[0].value.nt = s[0].value.nt * s[1].value.nt;
 			} else {
-				x.value.fl = to_float(y) * to_float(x);
-				x.value_type = FLOATING;
+				s[0].value.fl = to_float(s[1]) * to_float(s[0]);
+				s[0].value_type = FLOATING;
 			}
-			y = z;
-			z = t;
+			stack_down();
 			state = POSTOP;
 			break;
 
 		case (int)'-':
-			if (x.value_type == FIXED && y.value_type == FIXED) {
-				x.value.nt = y.value.nt - x.value.nt;
+			if (s[0].value_type == FIXED && s[1].value_type == FIXED) {
+				s[0].value.nt = s[1].value.nt - s[0].value.nt;
 			} else {
-				x.value.fl = to_float(y) - to_float(x);
-				x.value_type = FLOATING;
+				s[0].value.fl = to_float(s[1]) - to_float(s[0]);
+				s[0].value_type = FLOATING;
 			}
-			y = z;
-			z = t;
+			stack_down();
 			state = POSTOP;
 			break;
 
 		case (int)'+':
-			if (x.value_type == FIXED && y.value_type == FIXED
-				&& !addition_overflow(x.value.nt, y.value.nt)) {
-				x.value.nt = y.value.nt + x.value.nt;
+			if (s[0].value_type == FIXED && s[1].value_type == FIXED
+				&& !addition_overflow(s[0].value.nt, s[1].value.nt)) {
+				s[0].value.nt = s[1].value.nt + s[0].value.nt;
 			} else {
-				x.value.fl = to_float(y) + to_float(x);
-				x.value_type = FLOATING;
+				s[0].value.fl = to_float(s[1]) + to_float(s[0]);
+				s[0].value_type = FLOATING;
 			}
-			y = z;
-			z = t;
+			stack_down();
 			state = POSTOP;
 			break;
 
 		case (int)0x0a:	/* enter */
-			t = z;
-			z = y;
-			y = x;
+			stack_up();
 			state = POSTENTER;
 			break;
 
@@ -202,29 +186,29 @@ void process_symbol(int ch) {
 void refresh_screen() {
 	// sleep(1);
 	clear();
-	if (x.value_type == FIXED)
-		(void)sprintf(xstr, "x(i): %d", x.value.nt);
-	else
-		(void)sprintf(xstr, "x(f): %g", x.value.fl);
-	
-	if (y.value_type == FIXED)
-		(void)sprintf(ystr, "y: %d", y.value.nt);
-	else
-		(void)sprintf(ystr, "y: %g", y.value.fl);
-	
-	if (z.value_type == FIXED)
-		(void)sprintf(zstr, "z: %d", z.value.nt);
-	else
-		(void)sprintf(zstr, "z: %g", z.value.fl);
-	
-	if (t.value_type == FIXED)
-		(void)sprintf(tstr, "t: %d", t.value.nt);
-	else
-		(void)sprintf(tstr, "t: %g", t.value.fl);
-	mvaddstr(0, 0, tstr);
-	mvaddstr(1, 0, zstr);
-	mvaddstr(2, 0, ystr);
-	mvaddstr(3, 0, xstr);
+
+	for (int i=STACKDEPTH-1; i>=0; i--) {
+		if (s[i].value_type == FIXED) {
+			(void)sprintf(str, "%d", s[i].value.nt);
+			if (strlen(str) > DISPDIGITS) {
+				// We'll need to display in Scientific notation
+				int precision = DISPDIGITS - ((s[i].value.nt<0) ? 7 : 6);
+				(void)sprintf(str, "%.*e", precision, (float)s[i].value.nt);
+			}
+		}
+		else {
+			(void)sprintf(str, "%g", s[i].value.fl);
+			if (strlen(str) > DISPDIGITS) {
+				// We'll need to display in Scientific notation
+				int precision = DISPDIGITS - ((s[i].value.fl<0) ? 7 : 6);
+				(void)sprintf(str, "%.*e", precision, s[i].value.fl);
+			}			
+		}
+		char prefix[5];
+		sprintf(prefix, "%d: ", i);
+		mvaddstr(STACKDEPTH-i, 0, prefix);
+		mvaddstr(STACKDEPTH-i, 4, str);
+	}
 	refresh();			/* Print it on to the real screen */
 }
 
@@ -238,11 +222,11 @@ int main(void){
 	// (void)printf("-9999999, %d\n", num_bin_digits(-9999999));
 	// exit(0);
 
-	x.value_type = FIXED;
-	x.value.nt = 0;
-	y = x;
-	z = x;
-	t = x;
+	// Initialise stack with all integer zeroes
+	for (int i=0; i<STACKDEPTH; i++) {
+		s[i].value_type = FIXED;
+		s[i].value.nt = 0;
+	}
 
 	initscr();			/* Start curses mode 		  */
 	cbreak();			/* Unbuffer input; key-at-a-time */
