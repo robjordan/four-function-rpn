@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "four-function-rpn",
+			"path": "four-function-rpn"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.py": "python",
+			"sstream": "c"
+		}
+	}
+}
