@@ -14,6 +14,7 @@ typedef struct {
 void init_stack();
 void float_to_string(float f, char *str);
 char *get_stack_item_as_string(size_t i);
+char *convert_stack_item_for_led(char *si, uint8_t *dp_mask);
 void stack_up();
 void stack_down();
 float to_float(value x);

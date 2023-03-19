@@ -3,7 +3,10 @@
 #include <stdlib.h>
 #include <math.h>
 #include <limits.h>
+#include <assert.h>
 #include "fsm.h"
+
+#define __ASSERT_USE_STDERR
 
 #ifndef min
     #define min(a,b) ((a) > (b) ? (b) : (a))
@@ -120,15 +123,15 @@ void float_to_string(float f, char *str) {
 		if (ipart_digits > digits_avail) {
 			// Integer part too large to be displayed in full => use scientific
 			// reduce digits_avail by one char before dp, and 4 in exponent
-			dtostre(f, str, digits_avail-5, 0);
+			dtostre(f, str, digits_avail-5, DTOSTR_UPPERCASE);
 		} else if (ipart == 0.0 && fabs(fpart) < 0.001) {
 			// Small number - use scientific notation
-			dtostre(f, str, digits_avail-5, 0);
+			dtostre(f, str, digits_avail-5, DTOSTR_UPPERCASE);
 		} else {
 			// Print the whole integer part and as many decimal digits as fit
 			if (ipart == 0.0) {
 				// There's no integer part, just print the decimal
-				dtostrf(fpart, 0, digits_avail-2, str);
+				dtostrf(fpart, 0, digits_avail-1, str);
 			} else {
 				// Print the whole original number
 				dtostrf(f, 0, digits_avail-ipart_digits, str);
@@ -153,6 +156,33 @@ char *get_stack_item_as_string(size_t i) {
 	}
 	return(str);
 }
+
+char *convert_stack_item_for_led(char *si, uint8_t *dp_mask) {
+	static char outstr[16];
+	char *p = outstr;
+	size_t len = strlen(si);
+	char *dp = strchr(si, '.');
+	size_t i = 0;
+	if (dp == nullptr) {
+		// There isn't a decimal point. Left-pad string with spaces.
+		for (i = 0; i < (8-len); i++)
+			outstr[i] = ' ';
+		strncpy(&outstr[i], si, len);
+		*dp_mask = 0;
+	} else {
+		// We found a decimal point. We're going to assume there are 8 numeric
+		// characters, because that's the contract of the previous function
+		// Serial.print(len);
+		// Serial.flush();
+		// assert(len == 9);
+		strncpy(outstr, si, dp-si);		// copy the bit before dp
+		strcpy(&outstr[dp-si], dp+1);		// copy the bit after dp
+		*dp_mask = (0x80>>(dp-si-1));
+	}
+
+	return outstr;
+}
+
 
 // push each stack element up one step, to make space for a new top item
 void stack_up() {
