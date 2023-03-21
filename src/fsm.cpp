@@ -18,70 +18,27 @@
 char str[32];
 value s[STACKDEPTH];	/* the stack */
 
-#ifdef UNITTEST
-#include <ncurses.h>
-void refresh_screen() {
-	// sleep(1);
-	clear();
-
-	for (int i=STACKDEPTH-1; i>=0; i--) {
-		if (s[i].type == FIX) {
-			(void)sprintf(str, "%d", s[i].value.nt);
-			if (strlen(str) > DISPDIGITS) {
-				// We'll need to display in Scientific notation
-				int precision = DISPDIGITS - ((s[i].value.nt<0) ? 7 : 6);
-				(void)sprintf(str, "%.*e", precision, (float)s[i].value.nt);
-			}
-		}
-		else {
-			(void)sprintf(str, "%g", s[i].value.fl);
-			if (strlen(str) > DISPDIGITS) {
-				// We'll need to display in Scientific notation
-				int precision = DISPDIGITS - ((s[i].value.fl<0) ? 7 : 6);
-				(void)sprintf(str, "%.*e", precision, s[i].value.fl);
-			}			
-		}
-		char prefix[5];
-		sprintf(prefix, "%d: ", i);
-		mvaddstr(STACKDEPTH-i, 0, prefix);
-		mvaddstr(STACKDEPTH-i, 4, str);
-	}
-	refresh();			/* Print it on to the real screen */
-}
-
-int main(void){	
-
-	// (void)printf("0xf000, %d\n", num_bin_digits(0xf000));
-	// (void)printf("0x0f000000, %d\n", num_bin_digits(0x0f000000));
-	// (void)printf("0x0f00, %d\n", num_bin_digits(0x0f00));
-	// (void)printf("0x00f0, %d\n", num_bin_digits(0x00f0));
-	// (void)printf("99999999, %d\n", num_bin_digits(99999999));
-	// (void)printf("-9999999, %d\n", num_bin_digits(-9999999));
-	// exit(0);
-
-	init_stack();
-	initscr();			/* Start curses mode 		  */
-	cbreak();			/* Unbuffer input; key-at-a-time */
-	noecho(); 			/* what it says! */
-
-	refresh_screen();
-
-	while (1) {
-		int ch = getch();			/* Wait for user input */
-		(void)printf("0x%08x\n", ch);
-		process_symbol((char)ch);
-		refresh_screen();
-	}
-	endwin();			/* End curses mode		  */
-	return 0;
-}
-#endif
-
 void init_stack() {
 	// Initialise stack with all integer zeroes
 	for (int i=0; i<STACKDEPTH; i++) {
 		s[i].type = FIX;
 		s[i].value.nt = 0;
+	}
+}
+
+void strip_plus(char *s) {
+	// Remove the + sign of positive exponents
+	char *p = s;
+
+	while (*p) {
+		if (*p == '+') {
+			while (*p) {
+				*p = *(p+1);
+				p++;
+			}
+			break;
+		}
+		p++;
 	}
 }
 
@@ -92,8 +49,9 @@ void init_stack() {
 // The remaining n or n-1 digit space can accommodate a maximal integer value 
 // of (10^n)-1, or (10^(n-1))-1 if negative. If the value is greater than that, 
 // then we have to use scientific notation.
-// For small fractional numbers, i.e. those between -0.1 and 0.1 we go 
+// For small fractional numbers, i.e. those between -0.001 and 0.001 we go 
 // straight to scientific notation.
+// NB: Maximum precision for 32-bit floats is 6 significant digits
 void float_to_string(float f, char *str) {
 	double ipart, fpart;
 	bool negative = false;
@@ -122,18 +80,26 @@ void float_to_string(float f, char *str) {
 
 		if (ipart_digits > digits_avail) {
 			// Integer part too large to be displayed in full => use scientific
-			// reduce digits_avail by one char before dp, and 4 in exponent
-			dtostre(f, str, digits_avail-5, DTOSTR_UPPERCASE);
+			// reduce digits_avail by one char before dp, and 3 in exponent
+			// e.g. 1.2345E10
+			dtostre(f, str, digits_avail-4, DTOSTR_UPPERCASE);
+			strip_plus(str);
+
 		} else if (ipart == 0.0 && fabs(fpart) < 0.001) {
 			// Small number - use scientific notation
+			// e.g. 1.234E-10
 			dtostre(f, str, digits_avail-5, DTOSTR_UPPERCASE);
 		} else {
 			// Print the whole integer part and as many decimal digits as fit
 			if (ipart == 0.0) {
-				// There's no integer part, just print the decimal
-				dtostrf(fpart, 0, digits_avail-1, str);
+				// There's no integer part, just print the decimal, with max
+				// 6-digit precision e.g. "0.123456"
+				digits_avail = 6;
+				dtostrf(fpart, 0, digits_avail, str);
 			} else {
-				// Print the whole original number
+				// Print the whole original number, with max 6-digit precision
+				// e.g. "1234.56"
+				digits_avail = 6;
 				dtostrf(f, 0, digits_avail-ipart_digits, str);
 			}
 		}
@@ -170,14 +136,11 @@ char *convert_stack_item_for_led(char *si, uint8_t *dp_mask) {
 		strncpy(&outstr[i], si, len);
 		*dp_mask = 0;
 	} else {
-		// We found a decimal point. We're going to assume there are 8 numeric
-		// characters, because that's the contract of the previous function
-		// Serial.print(len);
-		// Serial.flush();
-		// assert(len == 9);
-		strncpy(outstr, si, dp-si);		// copy the bit before dp
-		strcpy(&outstr[dp-si], dp+1);		// copy the bit after dp
-		*dp_mask = (0x80>>(dp-si-1));
+		// We found a decimal point. Left-pad with spaces
+		strncpy(outstr, "        ", (8-(len-1)));
+		strncpy(&outstr[(8-(len-1))], si, dp-si);	// copy the bit before dp
+		strcpy(&outstr[(8-(len-1))+dp-si], dp+1);	// copy the bit after dp
+		*dp_mask = (0x80>>((8-(len-1))+(dp-si-1)));
 	}
 
 	return outstr;
@@ -283,6 +246,14 @@ void process_symbol(char ch) {
 				dp = 0.1;
 			} else if (state == FILLING_DEC) {
 				/* dp when already in decimal is ignored */
+			}
+			break;
+
+		case 'C': 	// Change sign
+			if (s[0].type == FIX) {
+				s[0].value.nt *= -1;
+			} else {	// FLOAT
+				s[0].value.fl *= -1.0;
 			}
 			break;
 

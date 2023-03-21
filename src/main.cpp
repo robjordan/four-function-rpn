@@ -6,12 +6,32 @@
 #define LED_BUILTIN PIN_PA7
 
 // GPIO I/O pins on the ATTINY connected to strobe, clock, data.
-#define  STROBE_TM PIN_PA1 // strobe = GPIO connected to strobe line of module
+#define  STROBE_TM PIN_PB1 // strobe = GPIO connected to strobe line of module
 #define  CLOCK_TM PIN_PA2  // clock = GPIO connected to clock line of module
 #define  DIO_TM PIN_PA3 // data = GPIO connected to data line of module
 #define TM_SETUP_DELAY 250
+#define TM_SLEEP_TICKS (100*60) // Number of 10ms idle ticks before screen is turned off
 bool swap_nibbles = false; //Default is false if left out, see note in readme at URL
 bool high_freq = false; //default false,, If using a high freq CPU > ~100 MHZ set to true. 
+unsigned long idle_time = 0;
+bool idle = false;
+
+
+char symbol[] = {
+  '0',
+  // short press key mapping
+  '7', '8', '9', '/',
+  '4', '5', '6', '*',
+  '1', '2', '3', '-', 
+  '0', '.', 0x0a, '+',
+
+  // long press key mapping
+  '7', '8', '9', '/',
+  '4', '5', '6', '*',
+  '1', '2', '3', 'C', 
+  '0', '.', 0x0a, '+',  
+
+};
 
 
 // Constructor object
@@ -37,45 +57,57 @@ void setup()
   pinMode(LED_BUILTIN, OUTPUT);
   init_stack();
 
-  // // Display digits strings on the TM1638 LED
-  // uint8_t dp = 0;
-  // char *tests[] = {
-  //   "1.2345678", "12.345678", "123.45678", "1234.5678", "12345.678", 
-  //   "123456.78", "1234567.8", "12345678.", "1.234e-10", "-1.23e+10"
-  // };
-  // while (1) {
-  //   for (int i=0; i<sizeof tests / sizeof tests[0]; i++) {
-  //     char *digits = convert_stack_item_for_led(tests[i], &dp);
-  //     tm.DisplayStr(digits, dp);
-  //     delay(1000);
-  //   }
-  // }
+  tm.DisplayStr("       0", 0);
 }
 
 void loop()
 {
-  int inbyte;
+  uint8_t button;
+  int hold_time = 0;
+  button = tm.ReadKey16();
 
-  while (!Serial.available())
-    ; // do nothing
-  inbyte = Serial.read();
+  if (button > 0 && button <= 16) {
+    while (tm.ReadKey16() != 0) {
+      // Wait for key release
+      delay(10);
+      hold_time += 10;
+    }
 
-  // Got a byte - flash the LED briefly
-  digitalWrite(LED_BUILTIN, HIGH);
-  delay(10);
-  digitalWrite(LED_BUILTIN, LOW);
+    // The long-press option
+    if (hold_time > 500)
+      button += 16;
 
-  process_symbol(inbyte);
-  char *si;
-  for (int i=4; i>0; i--) {
-    si = get_stack_item_as_string(i-1);
-    Serial.printf("%d: %s\n", i, si);
-    Serial.flush();
+    // Ignore the wake-up key 
+    if (idle) {
+      // wake up
+      idle = false;
+      idle_time = 0;
+    } else {
+      // process the keystroke
+      process_symbol(symbol[button]);
+    }
+
+    char *si;
+    for (int i=4; i>0; i--) {
+      si = get_stack_item_as_string(i-1);
+      Serial.printf("%d: %s\n", i, si);
+      // Serial.flush();
+
+    }
+
+    // Display stack[0] on the TM1638 LED
+    uint8_t dp = 0;
+    char *digits = convert_stack_item_for_led(si, &dp);
+    tm.DisplayStr(digits, dp);
+    idle_time = 0;
+
   }
 
-  // Display stack[0] on the TM1638 LED
-  uint8_t dp = 0;
-  char *digits = convert_stack_item_for_led(si, &dp);
-  tm.DisplayStr(digits, dp);
+  delay(10);
+  idle_time++;
+  if (idle_time > TM_SLEEP_TICKS && idle == false) {
+    tm.reset();
+    idle = true;
+  }
 
 }
