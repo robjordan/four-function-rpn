@@ -10,4 +10,6 @@ Digits 0-9, decimal point, four operators, and enter use the 16 keys. A second s
 Key layout is based on the numeric and basic operator part of classic HP calculators such as [HP 42S](https://en.wikipedia.org/wiki/HP-42S):
 
 |7|8|9|&divide;|
-
+|4|5|6|&multiply;|
+|1|2|3|&minus;|
+|0|.|enter|&plus;|
