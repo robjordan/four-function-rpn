@@ -11,6 +11,6 @@ Key layout is based on the numeric and basic operator part of classic HP calcula
 
 |7|8|9|&divide;|
 |:---:|:---:|:---:|:---:|
-|*4*|*5*|*6*|*&times;*|
+|**4|5|6|&times;|
 |1|2|3|&minus;|
-|0|.|enter|&plus;|
+|0|.|enter|&plus;**|
