@@ -5,7 +5,13 @@ It uses the TM1638 module, which has 16 keys and an 8-digit 7-segment LED. The m
 
 Currently it implements just plus, minus, multiply and divide.
 
-Digits 0-9, decimal point, four operators, and enter use the 16 keys. A second set of 16 keys is available via long-press. So far I have only implemented (+/-) ie change sign, via long-press of the minus key.
+The 16 unmodified keys are used for:
+- Digits 0-9,
+- decimal point,
+- four operators,
+- enter. 
+
+A second set of 16 keys is available via long-press. So far I have only implemented (+/-) ie change sign, via long-press of the minus key.
 
 Key layout is based on the numeric and basic operator part of classic HP calculators such as [HP 42S](https://en.wikipedia.org/wiki/HP-42S):
 
