@@ -10,7 +10,8 @@
 #define  CLOCK_TM PIN_PA2  // clock = GPIO connected to clock line of module
 #define  DIO_TM PIN_PA3 // data = GPIO connected to data line of module
 #define TM_SETUP_DELAY 250
-#define TM_SLEEP_TICKS (100*60) // Number of 10ms idle ticks before screen is turned off
+#define TICK_MS 10
+#define SLEEP_TICKS (6000) // Number of idle ticks before screen is turned off
 bool swap_nibbles = false; //Default is false if left out, see note in readme at URL
 bool high_freq = false; //default false,, If using a high freq CPU > ~100 MHZ set to true. 
 unsigned long idle_time = 0;
@@ -50,6 +51,20 @@ void setup()
   Serial.begin(9600,SERIAL_8N1);
   Serial.println("setup()");
 
+  // To save power, make sure unuused pins aren't floating
+  pinMode(PIN_PA4, INPUT_PULLUP);
+  pinMode(PIN_PA5, INPUT_PULLUP);
+  pinMode(PIN_PA6, INPUT_PULLUP);
+  pinMode(PIN_PB3, INPUT_PULLUP);
+  pinMode(PIN_PB2, INPUT_PULLUP);
+  pinMode(PIN_PA1, INPUT_PULLUP);
+  pinMode(PIN_PA0, INPUT_PULLUP);
+  pinMode(PIN_PB0, INPUT_PULLUP);
+
+  // Ability to flash the LED if needed
+  pinMode(LED_BUILTIN, OUTPUT);
+  VPORTA.OUT &= ~PIN7_bm;
+
   tm.displayBegin(); // Init display / keys module
   delay(TM_SETUP_DELAY);
   tm.reset();
@@ -64,13 +79,16 @@ void loop()
 {
   uint8_t button;
   int hold_time = 0;
+
+  VPORTA.IN = PIN7_bm; // toggle the output
+
   button = tm.ReadKey16();
 
   if (button > 0 && button <= 16) {
     while (tm.ReadKey16() != 0) {
       // Wait for key release
-      delay(10);
-      hold_time += 10;
+      delay(TICK_MS);
+      hold_time += TICK_MS;
     }
 
     // The long-press option
@@ -103,9 +121,9 @@ void loop()
 
   }
 
-  delay(10);
+  delay(TICK_MS);
   idle_time++;
-  if (idle_time > TM_SLEEP_TICKS && idle == false) {
+  if ((idle_time > SLEEP_TICKS) && idle == false) {
     tm.reset();
     idle = true;
   }
