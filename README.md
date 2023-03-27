@@ -11,7 +11,7 @@ The 16 unmodified keys are used for:
 - four operators,
 - enter. 
 
-A second set of 16 keys is available via long-press. So far I have only implemented (&plus;/&minus;) ie change sign, via long-press of the minus key.
+A second set of 16 keys is available via long-press. So far I have only implemented (&plus;/&minus;) ie *change sign*, via long-press of the minus key.
 
 Key layout is based on the numeric and basic operator part of classic HP calculators such as [HP 42S](https://en.wikipedia.org/wiki/HP-42S):
 
