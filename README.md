@@ -15,7 +15,7 @@ A second set of 16 keys is available via long-press. So far I have only implemen
 
 Key layout is based on the numeric and basic operator part of classic HP calculators such as [HP 42S](https://en.wikipedia.org/wiki/HP-42S):
 
-|<div style="width:290px">7</div>|8|9|&divide;|
+|&nbsp;7&nbsp;|8|9|&divide;|
 |:---:|:---:|:---:|:---:|
 |**4**|**5**|**6**|**&times;**|
 |**1**|**2**|**3**|**&minus;**|
